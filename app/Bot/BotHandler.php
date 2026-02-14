@@ -20,6 +20,7 @@ class BotHandler
     protected $message_id;
     protected $text;
     protected $data;
+    protected $callback_query_id;
     protected $user;
     protected $admin_ids = [];
 
@@ -79,6 +80,7 @@ class BotHandler
             $this->user_id = $this->update['callback_query']['from']['id'];
             $this->message_id = $this->update['callback_query']['message']['message_id'];
             $this->data = $this->update['callback_query']['data'];
+            $this->callback_query_id = $this->update['callback_query']['id'];
             $this->text = '';
         } elseif (isset($this->update['chat_join_request'])) {
             $this->handleJoinRequest();
@@ -106,14 +108,14 @@ class BotHandler
             str_starts_with($state->step, 'add_anime_') ||
             str_starts_with($state->step, 'add_episode_')
         )) {
-            $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update);
+            $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update, $this->callback_query_id);
             $adminHandler->handleState($state);
             return;
         }
 
         // User State Handling
         if ($state && $state->step && !$this->data) {
-             $userHandler = new UserHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id);
+             $userHandler = new UserHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->callback_query_id);
              $userHandler->handleState($state);
              return;
         }
@@ -132,26 +134,26 @@ class BotHandler
                 $this->data === 'add_episode_menu' ||
                 str_starts_with($this->data, 'add_ep_select_')
             )) {
-                $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update);
+                $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update, $this->callback_query_id);
                 $adminHandler->handle();
                 return;
             }
         } else {
              if ($this->text === '🗄 Boshqarish' && $this->isAdmin()) {
-                 $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update);
+                 $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update, $this->callback_query_id);
                  $adminHandler->showPanel();
                  return;
              }
 
              if ($this->text === '📊 Statistika' && $this->isAdmin()) {
-                 $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update);
+                 $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update, $this->callback_query_id);
                  $adminHandler->showStats();
                  return;
              }
         }
 
         // Default to UserHandler
-        $userHandler = new UserHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id);
+        $userHandler = new UserHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->callback_query_id);
         $userHandler->handle();
     }
 

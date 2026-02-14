@@ -21,8 +21,9 @@ class AdminHandler
     protected $data;
     protected $message_id;
     protected $update;
+    protected $callback_query_id;
 
-    public function __construct($chat_id, $user_id, $text, $data, $message_id, $update = [])
+    public function __construct($chat_id, $user_id, $text, $data, $message_id, $update = [], $callback_query_id = null)
     {
         $this->chat_id = $chat_id;
         $this->user_id = $user_id;
@@ -30,6 +31,7 @@ class AdminHandler
         $this->data = $data;
         $this->message_id = $message_id;
         $this->update = $update;
+        $this->callback_query_id = $callback_query_id;
     }
 
     public function handle()
@@ -158,7 +160,7 @@ class AdminHandler
     protected function deleteChannel($id)
     {
         Channel::destroy($id);
-        TelegramService::answerCallbackQuery($this->data, "Kanal o'chirildi!", true);
+        TelegramService::answerCallbackQuery($this->callback_query_id, "Kanal o'chirildi!", true);
         $this->showChannels();
     }
 
@@ -243,7 +245,7 @@ class AdminHandler
     protected function deleteAnime($id)
     {
         Anime::destroy($id);
-        TelegramService::answerCallbackQuery($this->data, "Anime o'chirildi!", true);
+        TelegramService::answerCallbackQuery($this->callback_query_id, "Anime o'chirildi!", true);
         $this->showDeleteAnimeMenu();
     }
 

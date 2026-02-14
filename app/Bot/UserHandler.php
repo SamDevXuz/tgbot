@@ -23,14 +23,16 @@ class UserHandler
     protected $text;
     protected $data;
     protected $message_id;
+    protected $callback_query_id;
 
-    public function __construct($chat_id, $user_id, $text, $data, $message_id)
+    public function __construct($chat_id, $user_id, $text, $data, $message_id, $callback_query_id = null)
     {
         $this->chat_id = $chat_id;
         $this->user_id = $user_id;
         $this->text = $text;
         $this->data = $data;
         $this->message_id = $message_id;
+        $this->callback_query_id = $callback_query_id;
     }
 
     public function handle()
@@ -55,7 +57,7 @@ class UserHandler
                 foreach ($results as $anime) {
                     $buttons[] = [['text' => $anime->name, 'callback_data' => "loadAnime={$anime->id}"]];
                 }
-                TelegramService::sendMessage($this->chat_id, "<b>Natijalar:</b>", json_encode(['inline_keyboard' => array_chunk($buttons, 1)]));
+                TelegramService::sendMessage($this->chat_id, "<b>Natijalar:</b>", json_encode(['inline_keyboard' => $buttons]));
             }
             $state->delete();
         }
@@ -88,7 +90,7 @@ class UserHandler
                  foreach ($results as $anime) {
                      $buttons[] = [['text' => $anime->name, 'callback_data' => "loadAnime={$anime->id}"]];
                  }
-                 TelegramService::sendMessage($this->chat_id, "<b>Qidiruv natijalari:</b>", json_encode(['inline_keyboard' => array_chunk($buttons, 1)]));
+                 TelegramService::sendMessage($this->chat_id, "<b>Qidiruv natijalari:</b>", json_encode(['inline_keyboard' => $buttons]));
                  return;
              }
         }
@@ -104,7 +106,7 @@ class UserHandler
         } elseif ($data === 'shorts') {
             $this->showRandomShort();
         } elseif ($data === 'subscribe') {
-            TelegramService::answerCallbackQuery($this->data, "Tez orada...", true);
+            TelegramService::answerCallbackQuery($this->callback_query_id, "Tez orada...", true);
         } elseif ($data === 'searchByName') {
             $this->setState('search_name');
             TelegramService::editMessageText($this->chat_id, $this->message_id, "<b>Anime nomini kiriting:</b>", json_encode(['inline_keyboard' => [[['text' => 'Ortga', 'callback_data' => 'back']]]]));
@@ -133,14 +135,14 @@ class UserHandler
         if ($vote) {
             if ($vote->type === $type) {
                 $vote->delete();
-                TelegramService::answerCallbackQuery($this->data, "Ovoz bekor qilindi.");
+                TelegramService::answerCallbackQuery($this->callback_query_id, "Ovoz bekor qilindi.");
             } else {
                 $vote->update(['type' => $type]);
-                TelegramService::answerCallbackQuery($this->data, "Ovoz o'zgartirildi.");
+                TelegramService::answerCallbackQuery($this->callback_query_id, "Ovoz o'zgartirildi.");
             }
         } else {
             AnimeVote::create(['user_id' => $this->user_id, 'anime_id' => $animeId, 'type' => $type]);
-            TelegramService::answerCallbackQuery($this->data, "Ovoz qabul qilindi.");
+            TelegramService::answerCallbackQuery($this->callback_query_id, "Ovoz qabul qilindi.");
         }
 
         $this->updateAnimeMessage($animeId);
@@ -151,10 +153,10 @@ class UserHandler
         $saved = SavedAnime::where('user_id', $this->user_id)->where('anime_id', $animeId)->first();
         if ($saved) {
             $saved->delete();
-            TelegramService::answerCallbackQuery($this->data, "Saqlanganlardan olib tashlandi.");
+            TelegramService::answerCallbackQuery($this->callback_query_id, "Saqlanganlardan olib tashlandi.");
         } else {
             SavedAnime::create(['user_id' => $this->user_id, 'anime_id' => $animeId]);
-            TelegramService::answerCallbackQuery($this->data, "Saqlandi!");
+            TelegramService::answerCallbackQuery($this->callback_query_id, "Saqlandi!");
         }
         $this->updateAnimeMessage($animeId);
     }
