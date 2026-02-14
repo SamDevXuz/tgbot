@@ -310,9 +310,11 @@ class AdminHandler
         }
 
         $current = Setting::get('admin_list');
-        if (!str_contains($current, $text)) {
-            $current .= "\n" . $text;
-            Setting::set('admin_list', trim($current));
+        $admins = array_map('trim', explode("\n", $current));
+
+        if (!in_array($text, $admins)) {
+            $admins[] = $text;
+            Setting::set('admin_list', implode("\n", $admins));
             TelegramService::sendMessage($this->chat_id, "Admin qo'shildi!");
         } else {
             TelegramService::sendMessage($this->chat_id, "Bu ID allaqachon admin.");
