@@ -14,6 +14,7 @@ class Short extends Model
 
     protected $fillable = [
         'file_id',
+        'file_type',
         'name',
         'time',
         'anime_id',

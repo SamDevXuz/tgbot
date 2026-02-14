@@ -90,7 +90,7 @@ class UserHandler
                  foreach ($results as $anime) {
                      $buttons[] = [['text' => $anime->name, 'callback_data' => "loadAnime={$anime->id}"]];
                  }
-                 TelegramService::sendMessage($this->chat_id, "<b>Qidiruv natijalari:</b>", json_encode(['inline_keyboard' => $buttons]));
+                 TelegramService::sendMessage($this->chat_id, "<b>Qidiruv natijalari:</b>", json_encode(['inline_keyboard' => array_chunk($buttons, 1)]));
                  return;
              }
         }
@@ -125,6 +125,10 @@ class UserHandler
             $this->handleSave(str_replace('save_', '', $data));
         } elseif ($data === 'delete') {
             TelegramService::deleteMessage($this->chat_id, $this->message_id);
+        }
+
+        if ($this->callback_query_id) {
+            TelegramService::answerCallbackQuery($this->callback_query_id);
         }
     }
 
@@ -247,11 +251,7 @@ class UserHandler
             ]
         ]);
 
-        if (str_starts_with($anime->file_id, 'B')) {
-             TelegramService::sendVideo($this->chat_id, $anime->file_id, $caption, $keyboard);
-        } else {
-             TelegramService::sendPhoto($this->chat_id, $anime->file_id, $caption, $keyboard);
-        }
+        $this->sendFile($anime->file_id, $anime->file_type, $caption, $keyboard);
     }
 
     protected function showEpisode($animeId, $episodeNum)
@@ -278,7 +278,7 @@ class UserHandler
 
         $keyboard = json_encode(['inline_keyboard' => $buttons]);
 
-        TelegramService::sendVideo($this->chat_id, $episode->file_id, $caption, $keyboard);
+        $this->sendFile($episode->file_id, $episode->file_type, $caption, $keyboard);
     }
 
     protected function showRandomShort()
@@ -292,7 +292,26 @@ class UserHandler
         $caption = "<b>{$short->name}</b>\n\n{$short->time}";
         $keyboard = json_encode(['inline_keyboard' => [[['text' => "Keyingisi ➡️", 'callback_data' => "shorts"]]]]);
 
-        TelegramService::sendVideo($this->chat_id, $short->file_id, $caption, $keyboard);
+        $this->sendFile($short->file_id, $short->file_type, $caption, $keyboard);
+    }
+
+    protected function sendFile($fileId, $fileType, $caption, $keyboard)
+    {
+        // Guess if type is missing (for legacy data)
+        if (empty($fileType)) {
+             $fileType = str_starts_with($fileId, 'B') ? 'video' : 'photo';
+        }
+
+        if ($fileType === 'video') {
+             TelegramService::sendVideo($this->chat_id, $fileId, $caption, $keyboard);
+        } elseif ($fileType === 'photo') {
+             TelegramService::sendPhoto($this->chat_id, $fileId, $caption, $keyboard);
+        } elseif ($fileType === 'document') {
+             TelegramService::sendDocument($this->chat_id, $fileId, $caption, $keyboard);
+        } else {
+             // Default fallback
+             TelegramService::sendVideo($this->chat_id, $fileId, $caption, $keyboard);
+        }
     }
 
     protected function setState($step, $data = [])
