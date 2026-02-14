@@ -65,6 +65,15 @@ class TelegramService
         ]);
     }
 
+    public static function editMessageReplyMarkup($chat_id, $message_id, $reply_markup = null)
+    {
+         return self::request('editMessageReplyMarkup', [
+            'chat_id' => $chat_id,
+            'message_id' => $message_id,
+            'reply_markup' => $reply_markup
+        ]);
+    }
+
     public static function answerCallbackQuery($callback_query_id, $text = null, $show_alert = false)
     {
         return self::request('answerCallbackQuery', [

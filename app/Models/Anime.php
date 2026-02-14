@@ -30,6 +30,11 @@ class Anime extends Model
         return $this->hasMany(AnimeEpisode::class);
     }
 
+    public function votes()
+    {
+        return $this->hasMany(AnimeVote::class);
+    }
+
     public function getMediaTypeAttribute()
     {
         return str_starts_with($this->file_id, 'B') ? 'video' : 'photo';

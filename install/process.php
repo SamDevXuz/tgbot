@@ -229,6 +229,21 @@ if ($currentStep == 2) {
             });
         }
 
+        // Anime Votes (Likes/Dislikes)
+        if (!$schema->hasTable('anime_votes')) {
+            $schema->create('anime_votes', function (Blueprint $table) {
+                $table->id();
+                $table->bigInteger('user_id');
+                $table->unsignedBigInteger('anime_id');
+                $table->enum('type', ['like', 'dislike']);
+                $table->timestamps();
+
+                $table->foreign('anime_id')->references('id')->on('animes')->onDelete('cascade');
+                // Ensure unique vote per user per anime
+                $table->unique(['user_id', 'anime_id']);
+            });
+        }
+
 
     } catch (\Exception $e) {
         redirectWithError(3, "Baza jadvallarini yaratishda xatolik: " . $e->getMessage());

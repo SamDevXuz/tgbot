@@ -8,11 +8,8 @@ namespace App\Bot;
 
 use App\Models\User;
 use App\Models\UserState;
-use App\Models\Anime;
-use App\Models\AnimeEpisode;
 use App\Models\Setting;
 use App\Models\Channel;
-use App\Models\Short;
 use App\Services\TelegramService;
 
 class BotHandler
@@ -23,6 +20,7 @@ class BotHandler
     protected $message_id;
     protected $text;
     protected $data;
+    protected $callback_query_id;
     protected $user;
     protected $admin_ids = [];
 
@@ -51,7 +49,6 @@ class BotHandler
                 ]
             );
 
-            // Update user info if changed
             if ($this->user->name !== $firstName || $this->user->username !== $username) {
                 $this->user->update(['name' => $firstName, 'username' => $username]);
             }
@@ -65,7 +62,6 @@ class BotHandler
                         $this->user->referrer_id = $refId;
                         $this->user->save();
                         $referrer->increment('referrals_count');
-                        // Optional: Add bonus balance
                     }
                 }
             }
@@ -84,6 +80,7 @@ class BotHandler
             $this->user_id = $this->update['callback_query']['from']['id'];
             $this->message_id = $this->update['callback_query']['message']['message_id'];
             $this->data = $this->update['callback_query']['data'];
+            $this->callback_query_id = $this->update['callback_query']['id'];
             $this->text = '';
         } elseif (isset($this->update['chat_join_request'])) {
             $this->handleJoinRequest();
@@ -104,16 +101,60 @@ class BotHandler
         }
 
         $state = UserState::where('telegram_id', $this->user_id)->first();
-        if ($state && $state->step && !$this->data) {
-            $this->handleState($state);
+
+        // Admin State Handling
+        if ($this->isAdmin() && $state && $state->step && !$this->data && (
+            str_starts_with($state->step, 'add_channel_') ||
+            str_starts_with($state->step, 'add_anime_') ||
+            str_starts_with($state->step, 'add_episode_')
+        )) {
+            $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update, $this->callback_query_id);
+            $adminHandler->handleState($state);
             return;
         }
 
-        if ($this->data) {
-            $this->handleCallback();
-        } else {
-            $this->handleMessage();
+        // User State Handling
+        if ($state && $state->step && !$this->data) {
+             $userHandler = new UserHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->callback_query_id);
+             $userHandler->handleState($state);
+             return;
         }
+
+        if ($this->data) {
+            if ($this->isAdmin() && (
+                $this->data === 'boshqarish' ||
+                $this->data === 'statistika_data' ||
+                $this->data === 'kanallar' ||
+                $this->data === 'animelar' ||
+                $this->data === 'add_channel' ||
+                str_starts_with($this->data, 'del_channel_') ||
+                $this->data === 'add_anime' ||
+                $this->data === 'del_anime_menu' ||
+                str_starts_with($this->data, 'del_anime_') ||
+                $this->data === 'add_episode_menu' ||
+                str_starts_with($this->data, 'add_ep_select_')
+            )) {
+                $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update, $this->callback_query_id);
+                $adminHandler->handle();
+                return;
+            }
+        } else {
+             if ($this->text === '🗄 Boshqarish' && $this->isAdmin()) {
+                 $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update, $this->callback_query_id);
+                 $adminHandler->showPanel();
+                 return;
+             }
+
+             if ($this->text === '📊 Statistika' && $this->isAdmin()) {
+                 $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update, $this->callback_query_id);
+                 $adminHandler->showStats();
+                 return;
+             }
+        }
+
+        // Default to UserHandler
+        $userHandler = new UserHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->callback_query_id);
+        $userHandler->handle();
     }
 
     protected function checkSubscription()
@@ -126,11 +167,9 @@ class BotHandler
 
         foreach ($channels as $channel) {
             if ($channel->type === 'request') {
-                // Simplified check: assume subscribed if it's a request channel
                 continue;
             }
 
-            // API call to check member status
             $res = TelegramService::getChatMember($channel->channel_id, $this->user_id);
             if (!isset($res['result']['status']) || in_array($res['result']['status'], ['left', 'kicked'])) {
                 $notSubscribed[] = $channel;
@@ -168,255 +207,6 @@ class BotHandler
         ]);
 
         TelegramService::sendMessage($user_id, "<b>Obuna tasdiqlandi! Botdan foydalanishingiz mumkin.</b>");
-    }
-
-    protected function handleMessage()
-    {
-        if ($this->text === '/start' || $this->text === '◀️ Orqaga') {
-            $this->sendMainMenu();
-            return;
-        }
-
-        if (str_starts_with($this->text, '/start ')) {
-            $param = str_replace('/start ', '', $this->text);
-            if (is_numeric($param)) {
-                $this->showAnime($param);
-                return;
-            } elseif (str_contains($param, '=')) {
-                 $parts = explode('=', $param);
-                 $this->showEpisode($parts[0], $parts[1]);
-                 return;
-            }
-        }
-
-        if ($this->text === '📊 Statistika' && $this->isAdmin()) {
-            $this->showStats();
-            return;
-        }
-
-        if ($this->text === '🗄 Boshqarish' && $this->isAdmin()) {
-             $this->showAdminPanel();
-             return;
-        }
-
-        // Search by name default fallback if user sends text
-        if (strlen($this->text) > 2) {
-             $results = Anime::where('name', 'LIKE', "%{$this->text}%")->limit(5)->get();
-             if ($results->isNotEmpty()) {
-                 $buttons = [];
-                 foreach ($results as $anime) {
-                     $buttons[] = [['text' => $anime->name, 'callback_data' => "loadAnime={$anime->id}"]];
-                 }
-                 TelegramService::sendMessage($this->chat_id, "<b>Qidiruv natijalari:</b>", json_encode(['inline_keyboard' => array_chunk($buttons, 1)]));
-                 return;
-             }
-        }
-    }
-
-    protected function handleCallback()
-    {
-        $data = $this->data;
-
-        if ($data === 'back') {
-            TelegramService::deleteMessage($this->chat_id, $this->message_id);
-            $this->sendMainMenu();
-        } elseif ($data === 'shorts') {
-            $this->showRandomShort();
-        } elseif ($data === 'searchByName') {
-            $this->setState('search_name');
-            TelegramService::editMessageText($this->chat_id, $this->message_id, "<b>Anime nomini kiriting:</b>", json_encode(['inline_keyboard' => [[['text' => 'Ortga', 'callback_data' => 'back']]]]));
-        } elseif ($data === 'searchByCode') {
-            $this->setState('search_code');
-            TelegramService::editMessageText($this->chat_id, $this->message_id, "<b>Anime kodini kiriting:</b>", json_encode(['inline_keyboard' => [[['text' => 'Ortga', 'callback_data' => 'back']]]]));
-        } elseif (str_starts_with($data, 'loadAnime=')) {
-            $id = explode('=', $data)[1];
-            TelegramService::deleteMessage($this->chat_id, $this->message_id);
-            $this->showAnime($id);
-        } elseif (str_starts_with($data, 'yuklanolish=')) {
-             $parts = explode('=', $data);
-             $this->showEpisode($parts[1], $parts[2] ?? 1);
-        } elseif ($data === 'boshqarish' && $this->isAdmin()) {
-            $this->showAdminPanel(true);
-        } elseif ($data === 'statistika_data') {
-             $this->showStats();
-        } elseif ($data === 'delete') {
-            TelegramService::deleteMessage($this->chat_id, $this->message_id);
-        }
-    }
-
-    protected function showAdminPanel($edit = false)
-    {
-        $keyboard = json_encode([
-            'inline_keyboard' => [
-                [['text' => "📊 Statistika", 'callback_data' => "statistika_data"]],
-                [['text' => "📢 Kanallar", 'callback_data' => "kanallar"], ['text' => "🎥 Animelar", 'callback_data' => "animelar"]],
-                [['text' => "◀️ Orqaga", 'callback_data' => "back"]]
-            ]
-        ]);
-
-        $text = "<b>Admin Panel:</b>";
-
-        if ($edit) {
-            TelegramService::editMessageText($this->chat_id, $this->message_id, $text, $keyboard);
-        } else {
-            TelegramService::sendMessage($this->chat_id, $text, $keyboard);
-        }
-    }
-
-    protected function showStats()
-    {
-        $users = User::count();
-        $animes = Anime::count();
-        $text = "<b>📊 Statistika:</b>\n\n👤 Foydalanuvchilar: $users\n🎬 Animelar: $animes";
-        TelegramService::sendMessage($this->chat_id, $text);
-    }
-
-    protected function handleState($state)
-    {
-        if ($this->text === '/start' || $this->text === '◀️ Orqaga') {
-             $state->delete();
-             $this->sendMainMenu();
-             return;
-        }
-
-        if ($state->step === 'search_name') {
-            $results = Anime::where('name', 'LIKE', "%{$this->text}%")->limit(10)->get();
-            if ($results->isEmpty()) {
-                TelegramService::sendMessage($this->chat_id, "Hech narsa topilmadi.");
-            } else {
-                $buttons = [];
-                foreach ($results as $anime) {
-                    $buttons[] = [['text' => $anime->name, 'callback_data' => "loadAnime={$anime->id}"]];
-                }
-                TelegramService::sendMessage($this->chat_id, "<b>Natijalar:</b>", json_encode(['inline_keyboard' => array_chunk($buttons, 1)]));
-            }
-            $state->delete();
-        } elseif ($state->step === 'search_code') {
-            if (is_numeric($this->text)) {
-                $this->showAnime($this->text);
-            } else {
-                 TelegramService::sendMessage($this->chat_id, "Faqat raqam yuboring.");
-            }
-            $state->delete();
-        }
-    }
-
-    protected function setState($step, $data = [])
-    {
-        UserState::updateOrCreate(
-            ['telegram_id' => $this->user_id],
-            ['step' => $step, 'data' => $data]
-        );
-    }
-
-    protected function sendMainMenu($edit = false)
-    {
-        $buttons = [
-            'inline_keyboard' => [
-                [
-                    ['text' => "🔎 Qidiruv", 'callback_data' => 'searchByName'],
-                ],
-                [
-                    ['text' => "💖 Obunalarim", 'callback_data' => 'subscribe'],
-                    ['text' => "🆓 Free Play", 'callback_data' => "shorts"],
-                ],
-                [
-                    ['text' => "🌐 Web Animes", 'web_app' => ['url' => Setting::get('web_url', 'https://google.com')]]
-                ]
-            ]
-        ];
-
-        $replyMarkup = json_encode([
-            'keyboard' => $this->isAdmin() ? [[['text' => "🗄 Boshqarish"]]] : [[['text' => "◀️ Orqaga"]]],
-            'resize_keyboard' => true,
-            'one_time_keyboard' => true
-        ]);
-
-        $text = Setting::get('start_text', "<b>Assalomu alaykum!</b> Botimizga xush kelibsiz.");
-
-        if ($edit) {
-             TelegramService::editMessageText($this->chat_id, $this->message_id, $text, json_encode($buttons));
-        } else {
-             TelegramService::sendMessage($this->chat_id, $text, json_encode($buttons));
-             // Send Main Menu Reply Keyboard
-             if ($this->isAdmin()) {
-                TelegramService::sendMessage($this->chat_id, "Menu", $replyMarkup);
-             }
-        }
-    }
-
-    protected function showAnime($id)
-    {
-        $anime = Anime::find($id);
-        if (!$anime) {
-             TelegramService::sendMessage($this->chat_id, "Anime topilmadi.");
-             return;
-        }
-
-        $anime->increment('views');
-
-        $caption = "<b>🎬 Nomi: {$anime->name}</b>\n\n";
-        $caption .= "🎥 Qismi: {$anime->episodes_count}\n";
-        $caption .= "🌍 Davlati: {$anime->country}\n";
-        $caption .= "🇺🇿 Tili: {$anime->language}\n";
-        $caption .= "📆 Yili: {$anime->year}\n";
-        $caption .= "🎞 Janri: {$anime->genre}\n";
-        $caption .= "👀 Ko'rishlar: {$anime->views}\n";
-
-        $keyboard = json_encode([
-            'inline_keyboard' => [
-                [['text' => "YUKLAB OLISH 📥", 'callback_data' => "yuklanolish={$anime->id}=1"]],
-                [['text' => "♥️ {$anime->likes}", 'callback_data' => "like_{$anime->id}"], ['text' => "💔 {$anime->dislikes}", 'callback_data' => "dislike_{$anime->id}"]],
-                [['text' => "♥️ Saqlash", 'callback_data' => "save_{$anime->id}"]]
-            ]
-        ]);
-
-        if (str_starts_with($anime->file_id, 'B')) {
-             TelegramService::sendVideo($this->chat_id, $anime->file_id, $caption, $keyboard);
-        } else {
-             TelegramService::sendPhoto($this->chat_id, $anime->file_id, $caption, $keyboard);
-        }
-    }
-
-    protected function showEpisode($animeId, $episodeNum)
-    {
-        $episode = AnimeEpisode::where('anime_id', $animeId)->where('episode_number', $episodeNum)->first();
-        if (!$episode) {
-             TelegramService::sendMessage($this->chat_id, "Qism topilmadi.");
-             return;
-        }
-
-        $anime = Anime::find($animeId);
-        $caption = "<b>{$anime->name}</b>\n\n{$episode->episode_number}-qism";
-
-        $prev = $episodeNum - 1;
-        $next = $episodeNum + 1;
-
-        $buttons = [];
-        $nav = [];
-        if ($prev > 0) $nav[] = ['text' => "⬅️ Oldingi", 'callback_data' => "yuklanolish={$animeId}={$prev}"];
-        if ($next <= $anime->episodes_count) $nav[] = ['text' => "➡️ Keyingi", 'callback_data' => "yuklanolish={$animeId}={$next}"];
-
-        if (!empty($nav)) $buttons[] = $nav;
-        $buttons[] = [['text' => "❌ Yopish", 'callback_data' => "delete"]];
-
-        $keyboard = json_encode(['inline_keyboard' => $buttons]);
-
-        TelegramService::sendVideo($this->chat_id, $episode->file_id, $caption, $keyboard);
-    }
-
-    protected function showRandomShort()
-    {
-        $short = Short::inRandomOrder()->first();
-        if (!$short) {
-             TelegramService::sendMessage($this->chat_id, "Shorts topilmadi.");
-             return;
-        }
-
-        $caption = "<b>{$short->name}</b>\n\n{$short->time}";
-        $keyboard = json_encode(['inline_keyboard' => [[['text' => "Keyingisi ➡️", 'callback_data' => "shorts"]]]]);
-
-        TelegramService::sendVideo($this->chat_id, $short->file_id, $caption, $keyboard);
     }
 
     protected function isAdmin()

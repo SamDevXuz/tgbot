@@ -27,6 +27,6 @@ try {
     // Handle the update
     $handler = new BotHandler($update);
     $handler->handle();
-} catch (\Exception $e) {
-    error_log("Bot Error: " . $e->getMessage());
+} catch (\Throwable $e) {
+    error_log("Bot Error: " . $e->getMessage() . "\nStack Trace: " . $e->getTraceAsString());
 }

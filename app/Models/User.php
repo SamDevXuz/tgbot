@@ -38,4 +38,9 @@ class User extends Model
     {
         return $this->hasMany(SavedAnime::class, 'user_id', 'telegram_id');
     }
+
+    public function votes()
+    {
+        return $this->hasMany(AnimeVote::class, 'user_id', 'telegram_id');
+    }
 }
