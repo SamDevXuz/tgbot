@@ -1,0 +1,27 @@
+{
+    "name": "samdevx/anime-bot",
+    "description": "A modern Telegram Bot for managing anime and subscriptions.",
+    "authors": [
+        {
+            "name": "SamDevX",
+            "email": "samdevx@example.com"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "illuminate/database": "^10.0",
+        "vlucas/phpdotenv": "^5.5",
+        "guzzlehttp/guzzle": "^7.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "8.1"
+        }
+    }
+}
