@@ -13,13 +13,20 @@ class TelegramService
     protected static $client;
     protected static $token;
 
+    public static function setClient($client)
+    {
+        self::$client = $client;
+    }
+
     public static function init($token)
     {
         self::$token = $token;
-        self::$client = new Client([
-            'base_uri' => "https://api.telegram.org/bot{$token}/",
-            'timeout'  => 10.0,
-        ]);
+        if (!self::$client) {
+            self::$client = new Client([
+                'base_uri' => "https://api.telegram.org/bot{$token}/",
+                'timeout'  => 10.0,
+            ]);
+        }
     }
 
     public static function request($method, $data = [])
