@@ -145,7 +145,7 @@ class BotHandler
 
              if ($this->text === '📊 Statistika' && $this->isAdmin()) {
                  $adminHandler = new AdminHandler($this->chat_id, $this->user_id, $this->text, $this->data, $this->message_id, $this->update);
-                 $adminHandler->showPanel();
+                 $adminHandler->showStats();
                  return;
              }
         }

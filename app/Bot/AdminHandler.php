@@ -34,7 +34,9 @@ class AdminHandler
 
     public function handle()
     {
-        if ($this->data === 'statistika_data') {
+        if ($this->data === 'boshqarish' || $this->data === 'back') { // back to main panel
+             $this->showPanel(true);
+        } elseif ($this->data === 'statistika_data') {
             $this->showStats();
         } elseif ($this->data === 'kanallar') {
             $this->showChannels();
@@ -94,7 +96,7 @@ class AdminHandler
         }
     }
 
-    protected function showStats()
+    public function showStats()
     {
         $users = User::count();
         $animes = Anime::count();
