@@ -156,6 +156,7 @@ if ($currentStep == 2) {
                 $table->id();
                 $table->string('name'); // nom
                 $table->string('file_id')->nullable(); // rams
+                $table->string('file_type')->default('photo'); // photo/video
                 $table->integer('episodes_count')->default(0); // qismi
                 $table->string('country')->nullable(); // davlat
                 $table->string('language')->nullable(); // tili
@@ -174,6 +175,7 @@ if ($currentStep == 2) {
                 $table->id();
                 $table->unsignedBigInteger('anime_id');
                 $table->string('file_id');
+                $table->string('file_type')->default('video'); // video/document
                 $table->integer('episode_number'); // qism
                 $table->timestamps();
 
@@ -186,6 +188,7 @@ if ($currentStep == 2) {
             $schema->create('shorts', function (Blueprint $table) {
                 $table->id();
                 $table->string('file_id'); // shorts_id
+                $table->string('file_type')->default('video');
                 $table->string('name');
                 $table->string('time');
                 $table->string('anime_id')->nullable();

@@ -27,8 +27,12 @@ class TelegramService
         if (!self::$client) {
             if (isset($_ENV['BOT_TOKEN'])) {
                 self::init($_ENV['BOT_TOKEN']);
+            } elseif (isset($GLOBALS['BOT_TOKEN'])) { // Fallback for some setups
+                 self::init($GLOBALS['BOT_TOKEN']);
             } else {
-                throw new \Exception("Telegram Bot Token not configured.");
+                // Return error instead of throwing to prevent crash if not configured in one specific place
+                error_log("Telegram Bot Token not configured.");
+                return ['ok' => false, 'description' => "Token not configured"];
             }
         }
 
@@ -38,8 +42,7 @@ class TelegramService
             ]);
             return json_decode($response->getBody(), true);
         } catch (\Exception $e) {
-            // Log error
-            error_log("Telegram API Error: " . $e->getMessage());
+            error_log("Telegram API Error ($method): " . $e->getMessage());
             return ['ok' => false, 'description' => $e->getMessage()];
         }
     }
@@ -103,6 +106,32 @@ class TelegramService
             'parse_mode' => 'HTML',
             'reply_markup' => $reply_markup
         ]);
+    }
+
+    public static function sendDocument($chat_id, $document, $caption = null, $reply_markup = null)
+    {
+        return self::request('sendDocument', [
+            'chat_id' => $chat_id,
+            'document' => $document,
+            'caption' => $caption,
+            'parse_mode' => 'HTML',
+            'reply_markup' => $reply_markup
+        ]);
+    }
+
+    public static function copyMessage($chat_id, $from_chat_id, $message_id, $caption = null, $reply_markup = null)
+    {
+        $data = [
+            'chat_id' => $chat_id,
+            'from_chat_id' => $from_chat_id,
+            'message_id' => $message_id,
+            'parse_mode' => 'HTML',
+            'reply_markup' => $reply_markup
+        ];
+        if ($caption !== null) {
+            $data['caption'] = $caption;
+        }
+        return self::request('copyMessage', $data);
     }
 
     public static function deleteMessage($chat_id, $message_id)

@@ -15,6 +15,7 @@ class Anime extends Model
     protected $fillable = [
         'name',
         'file_id',
+        'file_type',
         'episodes_count',
         'country',
         'language',
@@ -37,6 +38,10 @@ class Anime extends Model
 
     public function getMediaTypeAttribute()
     {
+        if (!empty($this->attributes['file_type'])) {
+            return $this->attributes['file_type'];
+        }
+        // Fallback for old data
         return str_starts_with($this->file_id, 'B') ? 'video' : 'photo';
     }
 }

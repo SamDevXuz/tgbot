@@ -15,6 +15,7 @@ class AnimeEpisode extends Model
     protected $fillable = [
         'anime_id',
         'file_id',
+        'file_type',
         'episode_number',
     ];
 
